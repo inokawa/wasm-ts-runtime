@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "description": "A toy WebAssembly runtime implementation with TypeScript.",
   "type": "module",
+  "private": true,
   "scripts": {
     "start": "tsx src/index.ts",
     "tsc": "tsc -p . --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "wat2wasm": "wat2wasm",
+    "wasm-objdump": "wasm-objdump"
   },
   "repository": {
     "type": "git",
