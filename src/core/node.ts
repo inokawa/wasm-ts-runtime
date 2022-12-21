@@ -17,24 +17,24 @@ export class ModuleNode {
   }
 }
 
-const loadSection = (buffer: Buffer) => {
+type SectionNode = TypeSectionNode | FunctionSectionNode | CodeSectionNode;
+
+const TYPE_SECTION_ID = 0x01;
+const FUNCTION_SECTION_ID = 0x03;
+const CODE_SECTION_ID = 0x0a;
+
+const loadSection = (buffer: Buffer): SectionNode => {
   const sectionId = buffer.readByte();
   const sectionSize = buffer.readU32();
   const sectionsBuffer = buffer.readBuffer(sectionSize);
 
-  return createSectionNode(sectionId, sectionsBuffer);
-};
-
-type SectionNode = TypeSectionNode | FunctionSectionNode | CodeSectionNode;
-
-const createSectionNode = (sectionId: number, buffer: Buffer): SectionNode => {
   switch (sectionId) {
-    case 1:
-      return new TypeSectionNode(buffer);
-    case 3:
-      return new FunctionSectionNode(buffer);
-    case 10:
-      return new CodeSectionNode(buffer);
+    case TYPE_SECTION_ID:
+      return new TypeSectionNode(sectionsBuffer);
+    case FUNCTION_SECTION_ID:
+      return new FunctionSectionNode(sectionsBuffer);
+    case CODE_SECTION_ID:
+      return new CodeSectionNode(sectionsBuffer);
     default:
       throw new Error(`invaild section id: ${sectionId}`);
   }
@@ -129,14 +129,20 @@ export class LocalsNode {
   }
 }
 
+const OP_END = 0x0b;
+const OP_I32_CONST = 0x41;
+type Op = typeof OP_END | typeof OP_I32_CONST;
+
+type InstrNode = I32ConstInstrNode;
+
 export class ExprNode {
   instrs: InstrNode[] = [];
-  endOp!: Op;
+  endOp!: typeof OP_END;
 
   constructor(buffer: Buffer) {
     while (true) {
       const opcode = buffer.readByte() as Op;
-      if (opcode === Op.End) {
+      if (opcode === OP_END) {
         this.endOp = opcode;
         break;
       }
@@ -145,33 +151,21 @@ export class ExprNode {
     }
   }
 }
-const Op = {
-  I32Const: 0x41,
-  End: 0x0b,
-} as const;
-type Op = typeof Op[keyof typeof Op];
-
-export class InstrNode {
-  opcode: Op;
-  constructor(opcode: Op) {
-    this.opcode = opcode;
-  }
-}
 
 const createInstrNode = (opcode: Op, buffer: Buffer) => {
   switch (opcode) {
-    case Op.I32Const:
-      return new I32ConstInstrNode(opcode, buffer);
+    case I32ConstInstrNode.OP:
+      return new I32ConstInstrNode(buffer);
     default:
       throw new Error(`invalid opcode: 0x${opcode.toString(16)}`);
   }
 };
 
-export class I32ConstInstrNode extends InstrNode {
+export class I32ConstInstrNode {
+  static OP = OP_I32_CONST;
   num: number;
 
-  constructor(op: Op, buffer: Buffer) {
-    super(op);
+  constructor(buffer: Buffer) {
     this.num = buffer.readI32();
   }
 }
