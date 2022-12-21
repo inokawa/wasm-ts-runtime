@@ -17,24 +17,31 @@ export class ModuleNode {
   }
 }
 
-type SectionNode = TypeSectionNode | FunctionSectionNode | CodeSectionNode;
+type SectionNode =
+  | TypeSectionNode
+  | FunctionSectionNode
+  | CodeSectionNode
+  | ExportSectionNode;
 
 const TYPE_SECTION_ID = 0x01;
 const FUNCTION_SECTION_ID = 0x03;
+const EXPORT_SECTION_ID = 0x07;
 const CODE_SECTION_ID = 0x0a;
 
 const loadSection = (buffer: Buffer): SectionNode => {
   const sectionId = buffer.readByte();
   const sectionSize = buffer.readU32();
-  const sectionsBuffer = buffer.readBuffer(sectionSize);
+  const sectionBuffer = buffer.readBuffer(sectionSize);
 
   switch (sectionId) {
     case TYPE_SECTION_ID:
-      return new TypeSectionNode(sectionsBuffer);
+      return new TypeSectionNode(sectionBuffer);
     case FUNCTION_SECTION_ID:
-      return new FunctionSectionNode(sectionsBuffer);
+      return new FunctionSectionNode(sectionBuffer);
+    case EXPORT_SECTION_ID:
+      return new ExportSectionNode(sectionBuffer);
     case CODE_SECTION_ID:
-      return new CodeSectionNode(sectionsBuffer);
+      return new CodeSectionNode(sectionBuffer);
     default:
       throw new Error(`invaild section id: ${sectionId}`);
   }
@@ -116,6 +123,34 @@ export class FuncNode {
   constructor(buffer: Buffer) {
     this.localses = buffer.readVec(() => new LocalsNode(buffer));
     this.expr = new ExprNode(buffer);
+  }
+}
+
+export class ExportSectionNode {
+  exports: ExportNode[] = [];
+
+  constructor(buffer: Buffer) {
+    this.exports = buffer.readVec(() => new ExportNode(buffer));
+  }
+}
+
+export class ExportNode {
+  name: string;
+  exportDesc: ExportDescNode;
+
+  constructor(buffer: Buffer) {
+    this.name = buffer.readName();
+    this.exportDesc = new ExportDescNode(buffer);
+  }
+}
+
+export class ExportDescNode {
+  tag: number;
+  index: number;
+
+  constructor(buffer: Buffer) {
+    this.tag = buffer.readByte();
+    this.index = buffer.readU32();
   }
 }
 
