@@ -163,7 +163,10 @@ export class LocalsNode {
     this.valType = buffer.readByte() as ValType;
   }
 }
+
 const OP = {
+  IF: 0x04,
+  ELSE: 0x05,
   END: 0x0b,
   LOCAL_GET: 0x20,
   LOCAL_SET: 0x21,
@@ -190,6 +193,7 @@ const OP = {
 type OP = typeof OP[keyof typeof OP];
 
 type InstrNode =
+  | IfInstrNode
   | I32ConstInstrNode
   | LocalGetInstrNode
   | LocalSetInstrNode
@@ -201,12 +205,12 @@ type InstrNode =
 
 export class ExprNode {
   instrs: InstrNode[] = [];
-  endOp!: typeof OP.END;
+  endOp!: typeof OP.END | typeof OP.ELSE;
 
   constructor(buffer: Buffer) {
     while (true) {
       const opcode = buffer.readByte() as OP;
-      if (opcode === OP.END) {
+      if (opcode === OP.END || opcode === OP.ELSE) {
         this.endOp = opcode;
         break;
       }
@@ -218,6 +222,8 @@ export class ExprNode {
 
 const createInstrNode = (opcode: OP, buffer: Buffer) => {
   switch (opcode) {
+    case OP.IF:
+      return new IfInstrNode(buffer);
     case OP.I32_CONST:
       return new I32ConstInstrNode(buffer);
     case OP.LOCAL_GET:
@@ -238,6 +244,22 @@ const createInstrNode = (opcode: OP, buffer: Buffer) => {
       throw new Error(`invalid opcode: 0x${opcode.toString(16)}`);
   }
 };
+
+export class IfInstrNode {
+  blockType: BlockType;
+  thenInstrs: ExprNode;
+  elseInstrs?: ExprNode;
+
+  constructor(buffer: Buffer) {
+    this.blockType = buffer.readByte();
+    this.thenInstrs = new ExprNode(buffer);
+    if (this.thenInstrs.endOp === OP.ELSE) {
+      this.elseInstrs = new ExprNode(buffer);
+    }
+  }
+}
+type S33 = number;
+type BlockType = typeof OP.IF | ValType | S33;
 
 export class I32ConstInstrNode {
   op = OP.I32_CONST;
