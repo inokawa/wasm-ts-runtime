@@ -163,27 +163,50 @@ export class LocalsNode {
     this.valType = buffer.readByte() as ValType;
   }
 }
+const OP = {
+  END: 0x0b,
+  LOCAL_GET: 0x20,
+  LOCAL_SET: 0x21,
+  I32_CONST: 0x41,
+  I32_EQZ: 0x45,
+  I32_EQ: 0x46,
+  I32_NE: 0x47,
+  I32_LT_S: 0x48,
+  I32_LT_U: 0x49,
+  I32_GT_S: 0x4a,
+  I32_GT_U: 0x4b,
+  I32_LE_S: 0x4c,
+  I32_LE_U: 0x4d,
+  I32_GE_S: 0x4e,
+  I32_GE_U: 0x4f,
+  I32_ADD: 0x6a,
+  I32_SUB: 0x6b,
+  I32_MUL: 0x6c,
+  I32_DIV_S: 0x6d,
+  I32_DIV_U: 0x6e,
+  I32_REM_S: 0x6f,
+  I32_REM_U: 0x70,
+} as const;
+type OP = typeof OP[keyof typeof OP];
 
-const OP_END = 0x0b;
-const OP_LOCAL_GET = 0x20;
-const OP_LOCAL_SET = 0x21;
-const OP_I32_CONST = 0x41;
-type Op =
-  | typeof OP_END
-  | typeof OP_LOCAL_GET
-  | typeof OP_LOCAL_SET
-  | typeof OP_I32_CONST;
-
-type InstrNode = I32ConstInstrNode | LocalGetInstrNode | LocalSetInstrNode;
+type InstrNode =
+  | I32ConstInstrNode
+  | LocalGetInstrNode
+  | LocalSetInstrNode
+  | I32AddInstrNode
+  | I32EqzInstrNode
+  | I32LtSInstrNode
+  | I32GeSInstrNode
+  | I32RemSInstrNode;
 
 export class ExprNode {
   instrs: InstrNode[] = [];
-  endOp!: typeof OP_END;
+  endOp!: typeof OP.END;
 
   constructor(buffer: Buffer) {
     while (true) {
-      const opcode = buffer.readByte() as Op;
-      if (opcode === OP_END) {
+      const opcode = buffer.readByte() as OP;
+      if (opcode === OP.END) {
         this.endOp = opcode;
         break;
       }
@@ -193,21 +216,31 @@ export class ExprNode {
   }
 }
 
-const createInstrNode = (opcode: Op, buffer: Buffer) => {
+const createInstrNode = (opcode: OP, buffer: Buffer) => {
   switch (opcode) {
-    case OP_I32_CONST:
+    case OP.I32_CONST:
       return new I32ConstInstrNode(buffer);
-    case OP_LOCAL_GET:
+    case OP.LOCAL_GET:
       return new LocalGetInstrNode(buffer);
-    case OP_LOCAL_SET:
+    case OP.LOCAL_SET:
       return new LocalSetInstrNode(buffer);
+    case OP.I32_ADD:
+      return new I32AddInstrNode();
+    case OP.I32_EQZ:
+      return new I32EqzInstrNode();
+    case OP.I32_LT_S:
+      return new I32LtSInstrNode();
+    case OP.I32_GE_S:
+      return new I32GeSInstrNode();
+    case OP.I32_REM_S:
+      return new I32RemSInstrNode();
     default:
       throw new Error(`invalid opcode: 0x${opcode.toString(16)}`);
   }
 };
 
 export class I32ConstInstrNode {
-  op = OP_I32_CONST;
+  op = OP.I32_CONST;
   num: number;
 
   constructor(buffer: Buffer) {
@@ -216,7 +249,7 @@ export class I32ConstInstrNode {
 }
 
 export class LocalGetInstrNode {
-  op = OP_LOCAL_GET;
+  op = OP.LOCAL_GET;
   localIdx: number;
 
   constructor(buffer: Buffer) {
@@ -225,10 +258,26 @@ export class LocalGetInstrNode {
 }
 
 export class LocalSetInstrNode {
-  op = OP_LOCAL_SET;
+  op = OP.LOCAL_SET;
   localIdx: number;
 
   constructor(buffer: Buffer) {
     this.localIdx = buffer.readU32();
   }
+}
+
+export class I32AddInstrNode {
+  op = OP.I32_ADD;
+}
+export class I32EqzInstrNode {
+  op = OP.I32_EQZ;
+}
+export class I32LtSInstrNode {
+  op = OP.I32_LT_S;
+}
+export class I32GeSInstrNode {
+  op = OP.I32_GE_S;
+}
+export class I32RemSInstrNode {
+  op = OP.I32_REM_S;
 }
