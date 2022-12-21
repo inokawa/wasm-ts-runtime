@@ -117,11 +117,11 @@ export class CodeNode {
 }
 
 export class FuncNode {
-  localses: LocalsNode[] = [];
+  locals: LocalsNode[] = [];
   expr: ExprNode;
 
   constructor(buffer: Buffer) {
-    this.localses = buffer.readVec(() => new LocalsNode(buffer));
+    this.locals = buffer.readVec(() => new LocalsNode(buffer));
     this.expr = new ExprNode(buffer);
   }
 }
@@ -165,9 +165,13 @@ export class LocalsNode {
 }
 
 const OP = {
+  BLOCK: 0x02,
+  LOOP: 0x03,
   IF: 0x04,
   ELSE: 0x05,
   END: 0x0b,
+  BR: 0x0c,
+  BR_IF: 0x0d,
   LOCAL_GET: 0x20,
   LOCAL_SET: 0x21,
   I32_CONST: 0x41,
@@ -193,6 +197,10 @@ const OP = {
 type OP = typeof OP[keyof typeof OP];
 
 type InstrNode =
+  | BlockInstrNode
+  | LoopInstrNode
+  | BrIfInstrNode
+  | BrIfInstrNode
   | IfInstrNode
   | I32ConstInstrNode
   | LocalGetInstrNode
@@ -222,6 +230,16 @@ export class ExprNode {
 
 const createInstrNode = (opcode: OP, buffer: Buffer) => {
   switch (opcode) {
+    case OP.BLOCK:
+      return new BlockInstrNode(buffer);
+    case OP.LOOP:
+      return new LoopInstrNode(buffer);
+    case OP.BR:
+      return new BrInstrNode(buffer);
+    case OP.BR_IF:
+      return new BrIfInstrNode(buffer);
+    case OP.BLOCK:
+      return new BlockInstrNode(buffer);
     case OP.IF:
       return new IfInstrNode(buffer);
     case OP.I32_CONST:
@@ -244,6 +262,43 @@ const createInstrNode = (opcode: OP, buffer: Buffer) => {
       throw new Error(`invalid opcode: 0x${opcode.toString(16)}`);
   }
 };
+
+export class BlockInstrNode {
+  blockType: BlockType;
+  instrs: ExprNode;
+
+  constructor(buffer: Buffer) {
+    this.blockType = buffer.readByte();
+    this.instrs = new ExprNode(buffer);
+  }
+}
+
+export class LoopInstrNode {
+  blockType: BlockType;
+  instrs: ExprNode;
+
+  constructor(buffer: Buffer) {
+    this.blockType = buffer.readByte();
+    this.instrs = new ExprNode(buffer);
+  }
+}
+
+export class BrInstrNode {
+  labelIdx: LabelIdx;
+
+  constructor(buffer: Buffer) {
+    this.labelIdx = buffer.readU32();
+  }
+}
+
+export class BrIfInstrNode {
+  labelIdx: LabelIdx;
+
+  constructor(buffer: Buffer) {
+    this.labelIdx = buffer.readU32();
+  }
+}
+type LabelIdx = number;
 
 export class IfInstrNode {
   blockType: BlockType;
