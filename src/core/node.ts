@@ -130,10 +130,16 @@ export class LocalsNode {
 }
 
 const OP_END = 0x0b;
+const OP_LOCAL_GET = 0x20;
+const OP_LOCAL_SET = 0x21;
 const OP_I32_CONST = 0x41;
-type Op = typeof OP_END | typeof OP_I32_CONST;
+type Op =
+  | typeof OP_END
+  | typeof OP_LOCAL_GET
+  | typeof OP_LOCAL_SET
+  | typeof OP_I32_CONST;
 
-type InstrNode = I32ConstInstrNode;
+type InstrNode = I32ConstInstrNode | LocalGetInstrNode | LocalSetInstrNode;
 
 export class ExprNode {
   instrs: InstrNode[] = [];
@@ -154,18 +160,40 @@ export class ExprNode {
 
 const createInstrNode = (opcode: Op, buffer: Buffer) => {
   switch (opcode) {
-    case I32ConstInstrNode.OP:
+    case OP_I32_CONST:
       return new I32ConstInstrNode(buffer);
+    case OP_LOCAL_GET:
+      return new LocalGetInstrNode(buffer);
+    case OP_LOCAL_SET:
+      return new LocalSetInstrNode(buffer);
     default:
       throw new Error(`invalid opcode: 0x${opcode.toString(16)}`);
   }
 };
 
 export class I32ConstInstrNode {
-  static OP = OP_I32_CONST;
+  op = OP_I32_CONST;
   num: number;
 
   constructor(buffer: Buffer) {
     this.num = buffer.readI32();
+  }
+}
+
+export class LocalGetInstrNode {
+  op = OP_LOCAL_GET;
+  localIdx: number;
+
+  constructor(buffer: Buffer) {
+    this.localIdx = buffer.readU32();
+  }
+}
+
+export class LocalSetInstrNode {
+  op = OP_LOCAL_SET;
+  localIdx: number;
+
+  constructor(buffer: Buffer) {
+    this.localIdx = buffer.readU32();
   }
 }

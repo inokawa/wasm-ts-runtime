@@ -16,3 +16,10 @@ it("load const.wat", async () => {
   const wasmModule = new WasmModule(wasmBuffer);
   expect(wasmModule.sections.length).toBe(3);
 });
+
+it("load local.wat", async () => {
+  const code = await fs.readFile("data/local.wasm");
+  const wasmBuffer = new WasmBuffer(code);
+  const wasmModule = new WasmModule(wasmBuffer);
+  expect(wasmModule.sections.length).toBe(3);
+});
