@@ -44,3 +44,10 @@ it("load loop.wat", async () => {
   const wasmModule = new WasmModule(wasmBuffer);
   expect(wasmModule.sections.length).toBe(4);
 });
+
+it("load call.wat", async () => {
+  const code = await fs.readFile("data/call.wasm");
+  const wasmBuffer = new WasmBuffer(code);
+  const wasmModule = new WasmModule(wasmBuffer);
+  expect(wasmModule.sections.length).toBe(4);
+});

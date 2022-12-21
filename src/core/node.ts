@@ -169,6 +169,7 @@ const OP = {
   LOOP: 0x03,
   IF: 0x04,
   ELSE: 0x05,
+  CALL: 0x10,
   END: 0x0b,
   BR: 0x0c,
   BR_IF: 0x0d,
@@ -199,6 +200,7 @@ type OP = typeof OP[keyof typeof OP];
 type InstrNode =
   | BlockInstrNode
   | LoopInstrNode
+  | CallInstrNode
   | BrIfInstrNode
   | BrIfInstrNode
   | IfInstrNode
@@ -242,6 +244,8 @@ const createInstrNode = (opcode: OP, buffer: Buffer) => {
       return new BlockInstrNode(buffer);
     case OP.IF:
       return new IfInstrNode(buffer);
+    case OP.CALL:
+      return new CallInstrNode(buffer);
     case OP.I32_CONST:
       return new I32ConstInstrNode(buffer);
     case OP.LOCAL_GET:
@@ -315,6 +319,15 @@ export class IfInstrNode {
 }
 type S33 = number;
 type BlockType = typeof OP.IF | ValType | S33;
+
+export class CallInstrNode {
+  funcIdx: FuncIdx;
+
+  constructor(buffer: Buffer) {
+    this.funcIdx = buffer.readU32();
+  }
+}
+type FuncIdx = number;
 
 export class I32ConstInstrNode {
   op = OP.I32_CONST;
