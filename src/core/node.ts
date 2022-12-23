@@ -476,6 +476,7 @@ export class LocalGetInstrNode {
 
   store(buffer: Buffer) {
     buffer.writeByte(OP.LOCAL_GET);
+    buffer.writeU32(this.localIdx);
   }
 }
 
@@ -489,6 +490,7 @@ export class LocalSetInstrNode {
 
   store(buffer: Buffer) {
     buffer.writeByte(OP.LOCAL_SET);
+    buffer.writeU32(this.localIdx);
   }
 }
 
