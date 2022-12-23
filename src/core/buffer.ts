@@ -1,9 +1,11 @@
 export class Buffer {
   #cursor = 0;
   #buffer: ArrayBuffer;
+  #view: DataView;
 
   constructor({ buffer }: { buffer: ArrayBuffer }) {
     this.#buffer = buffer;
+    this.#view = new DataView(buffer);
   }
 
   readBytes(size: number): Uint8Array {
@@ -84,5 +86,20 @@ export class Buffer {
 
   get eof(): boolean {
     return this.byteLength <= this.#cursor;
+  }
+
+  get buffer(): ArrayBuffer {
+    return this.#buffer;
+  }
+
+  writeBytes(bytes: ArrayBuffer) {
+    const u8s = new Uint8Array(bytes);
+    for (let byte of u8s) {
+      this.writeByte(byte);
+    }
+  }
+
+  writeByte(byte: number) {
+    this.#view.setUint8(this.#cursor++, byte);
   }
 }

@@ -15,6 +15,11 @@ export class ModuleNode {
       this.sections.push(loadSection(buffer));
     }
   }
+
+  store(buffer: Buffer) {
+    buffer.writeBytes(this.magic);
+    buffer.writeBytes(this.version);
+  }
 }
 
 type SectionNode =
