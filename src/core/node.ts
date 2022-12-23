@@ -434,6 +434,10 @@ export class IfInstrNode {
 
   store(buffer: Buffer) {
     buffer.writeByte(OP.IF);
+    buffer.writeByte(this.blockType);
+    this.thenInstrs.endOp = this.elseInstrs ? OP.ELSE : OP.END;
+    this.thenInstrs.store(buffer);
+    this.elseInstrs?.store(buffer);
   }
 }
 type S33 = number;
