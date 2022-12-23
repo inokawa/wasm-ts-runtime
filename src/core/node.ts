@@ -1,4 +1,4 @@
-import type { Buffer } from "./buffer";
+import { Buffer } from "./buffer";
 
 export class ModuleNode {
   magic: Uint8Array;
@@ -19,8 +19,19 @@ export class ModuleNode {
   store(buffer: Buffer) {
     buffer.writeBytes(this.magic);
     buffer.writeBytes(this.version);
+
+    for (const section of this.sections) {
+      section.store(buffer);
+    }
   }
 }
+
+const TEMP_BUFFER_LENGTH = 1024;
+
+const createTempBuffer = () =>
+  new Buffer({
+    buffer: new ArrayBuffer(TEMP_BUFFER_LENGTH),
+  });
 
 type SectionNode =
   | TypeSectionNode
@@ -58,6 +69,15 @@ export class TypeSectionNode {
   constructor(buffer: Buffer) {
     this.funcTypes = buffer.readVec(() => new FuncTypeNode(buffer));
   }
+
+  store(buffer: Buffer) {
+    buffer.writeByte(TYPE_SECTION_ID);
+    const sectionsBuffer = createTempBuffer();
+    sectionsBuffer.writeVec(this.funcTypes, (funcType) => {
+      funcType.store(sectionsBuffer);
+    });
+    buffer.append(sectionsBuffer);
+  }
 }
 
 const FUNC_TYPE_TAG = 0x60;
@@ -83,6 +103,12 @@ export class FuncTypeNode {
     this.paramType = new ResultTypeNode(buffer);
     this.resultType = new ResultTypeNode(buffer);
   }
+
+  store(buffer: Buffer) {
+    buffer.writeByte(FUNC_TYPE_TAG);
+    this.paramType.store(buffer);
+    this.resultType.store(buffer);
+  }
 }
 
 export class ResultTypeNode {
@@ -90,6 +116,12 @@ export class ResultTypeNode {
 
   constructor(buffer: Buffer) {
     this.valTypes = buffer.readVec(() => buffer.readByte() as ValType);
+  }
+
+  store(buffer: Buffer) {
+    buffer.writeVec(this.valTypes, (valType) => {
+      buffer.writeByte(valType);
+    });
   }
 }
 
@@ -101,6 +133,15 @@ export class FunctionSectionNode {
   constructor(buffer: Buffer) {
     this.typeIdxs = buffer.readVec(() => buffer.readU32() as TypeIdx);
   }
+
+  store(buffer: Buffer) {
+    buffer.writeByte(FUNCTION_SECTION_ID);
+    const sectionsBuffer = createTempBuffer();
+    sectionsBuffer.writeVec(this.typeIdxs, (typeIdx) => {
+      sectionsBuffer.writeU32(typeIdx);
+    });
+    buffer.append(sectionsBuffer);
+  }
 }
 
 export class CodeSectionNode {
@@ -108,6 +149,15 @@ export class CodeSectionNode {
 
   constructor(buffer: Buffer) {
     this.codes = buffer.readVec(() => new CodeNode(buffer));
+  }
+
+  store(buffer: Buffer) {
+    buffer.writeByte(CODE_SECTION_ID);
+    const sectionsBuffer = createTempBuffer();
+    sectionsBuffer.writeVec(this.codes, (code) => {
+      code.store(sectionsBuffer);
+    });
+    buffer.append(sectionsBuffer);
   }
 }
 
@@ -119,6 +169,12 @@ export class CodeNode {
     this.size = buffer.readU32();
     this.func = new FuncNode(buffer.readBuffer(this.size));
   }
+
+  store(buffer: Buffer) {
+    const funcBuffer = createTempBuffer();
+    this.func.store(funcBuffer);
+    buffer.append(funcBuffer);
+  }
 }
 
 export class FuncNode {
@@ -129,6 +185,13 @@ export class FuncNode {
     this.locals = buffer.readVec(() => new LocalsNode(buffer));
     this.expr = new ExprNode(buffer);
   }
+
+  store(buffer: Buffer) {
+    buffer.writeVec(this.locals, (locals) => {
+      locals.store(buffer);
+    });
+    this.expr.store(buffer);
+  }
 }
 
 export class ExportSectionNode {
@@ -136,6 +199,15 @@ export class ExportSectionNode {
 
   constructor(buffer: Buffer) {
     this.exports = buffer.readVec(() => new ExportNode(buffer));
+  }
+
+  store(buffer: Buffer) {
+    buffer.writeByte(EXPORT_SECTION_ID);
+    const sectionsBuffer = createTempBuffer();
+    sectionsBuffer.writeVec(this.exports, (ex) => {
+      ex.store(sectionsBuffer);
+    });
+    buffer.append(sectionsBuffer);
   }
 }
 
@@ -147,6 +219,11 @@ export class ExportNode {
     this.name = buffer.readName();
     this.exportDesc = new ExportDescNode(buffer);
   }
+
+  store(buffer: Buffer) {
+    buffer.writeName(this.name);
+    this.exportDesc.store(buffer);
+  }
 }
 
 export class ExportDescNode {
@@ -157,6 +234,11 @@ export class ExportDescNode {
     this.tag = buffer.readByte();
     this.index = buffer.readU32();
   }
+
+  store(buffer: Buffer) {
+    buffer.writeByte(this.tag);
+    buffer.writeU32(this.index);
+  }
 }
 
 export class LocalsNode {
@@ -166,6 +248,11 @@ export class LocalsNode {
   constructor(buffer: Buffer) {
     this.num = buffer.readU32();
     this.valType = buffer.readByte() as ValType;
+  }
+
+  store(buffer: Buffer) {
+    buffer.writeU32(this.num);
+    buffer.writeByte(this.valType);
   }
 }
 
@@ -233,6 +320,13 @@ export class ExprNode {
       if (buffer.eof) break;
     }
   }
+
+  store(buffer: Buffer) {
+    for (const instr of this.instrs) {
+      instr.store(buffer);
+    }
+    buffer.writeByte(this.endOp);
+  }
 }
 
 const createInstrNode = (opcode: OP, buffer: Buffer) => {
@@ -280,6 +374,10 @@ export class BlockInstrNode {
     this.blockType = buffer.readByte();
     this.instrs = new ExprNode(buffer);
   }
+
+  store(buffer: Buffer) {
+    buffer.writeByte(OP.BLOCK);
+  }
 }
 
 export class LoopInstrNode {
@@ -290,6 +388,10 @@ export class LoopInstrNode {
     this.blockType = buffer.readByte();
     this.instrs = new ExprNode(buffer);
   }
+
+  store(buffer: Buffer) {
+    buffer.writeByte(OP.LOOP);
+  }
 }
 
 export class BrInstrNode {
@@ -298,6 +400,10 @@ export class BrInstrNode {
   constructor(buffer: Buffer) {
     this.labelIdx = buffer.readU32();
   }
+
+  store(buffer: Buffer) {
+    buffer.writeByte(OP.BR);
+  }
 }
 
 export class BrIfInstrNode {
@@ -305,6 +411,10 @@ export class BrIfInstrNode {
 
   constructor(buffer: Buffer) {
     this.labelIdx = buffer.readU32();
+  }
+
+  store(buffer: Buffer) {
+    buffer.writeByte(OP.BR_IF);
   }
 }
 type LabelIdx = number;
@@ -321,6 +431,10 @@ export class IfInstrNode {
       this.elseInstrs = new ExprNode(buffer);
     }
   }
+
+  store(buffer: Buffer) {
+    buffer.writeByte(OP.IF);
+  }
 }
 type S33 = number;
 type BlockType = typeof OP.IF | ValType | S33;
@@ -330,6 +444,10 @@ export class CallInstrNode {
 
   constructor(buffer: Buffer) {
     this.funcIdx = buffer.readU32();
+  }
+
+  store(buffer: Buffer) {
+    buffer.writeByte(OP.CALL);
   }
 }
 type FuncIdx = number;
@@ -341,6 +459,11 @@ export class I32ConstInstrNode {
   constructor(buffer: Buffer) {
     this.num = buffer.readI32();
   }
+
+  store(buffer: Buffer) {
+    buffer.writeByte(OP.I32_CONST);
+    buffer.writeI32(this.num);
+  }
 }
 
 export class LocalGetInstrNode {
@@ -349,6 +472,10 @@ export class LocalGetInstrNode {
 
   constructor(buffer: Buffer) {
     this.localIdx = buffer.readU32();
+  }
+
+  store(buffer: Buffer) {
+    buffer.writeByte(OP.LOCAL_GET);
   }
 }
 
@@ -359,20 +486,44 @@ export class LocalSetInstrNode {
   constructor(buffer: Buffer) {
     this.localIdx = buffer.readU32();
   }
+
+  store(buffer: Buffer) {
+    buffer.writeByte(OP.LOCAL_SET);
+  }
 }
 
 export class I32AddInstrNode {
   op = OP.I32_ADD;
+
+  store(buffer: Buffer) {
+    buffer.writeByte(OP.I32_ADD);
+  }
 }
 export class I32EqzInstrNode {
   op = OP.I32_EQZ;
+
+  store(buffer: Buffer) {
+    buffer.writeByte(OP.I32_EQZ);
+  }
 }
 export class I32LtSInstrNode {
   op = OP.I32_LT_S;
+
+  store(buffer: Buffer) {
+    buffer.writeByte(OP.I32_LT_S);
+  }
 }
 export class I32GeSInstrNode {
   op = OP.I32_GE_S;
+
+  store(buffer: Buffer) {
+    buffer.writeByte(OP.I32_GE_S);
+  }
 }
 export class I32RemSInstrNode {
   op = OP.I32_REM_S;
+
+  store(buffer: Buffer) {
+    buffer.writeByte(OP.I32_REM_S);
+  }
 }

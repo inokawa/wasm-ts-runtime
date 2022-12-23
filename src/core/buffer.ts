@@ -102,4 +102,69 @@ export class Buffer {
   writeByte(byte: number) {
     this.#view.setUint8(this.#cursor++, byte);
   }
+
+  writeU32(value: number) {
+    value |= 0;
+    const result = [];
+    while (true) {
+      const byte = value & 0b01111111;
+      value >>= 7;
+      if (value === 0 && (byte & 0b01000000) === 0) {
+        result.push(byte);
+        break;
+      }
+      result.push(byte | 0b10000000);
+    }
+    const u8a = new Uint8Array(result);
+    this.writeBytes(u8a.buffer);
+  }
+
+  writeS32(value: number) {
+    // https://en.wikipedia.org/wiki/LEB128#Encode_signed_32-bit_integer
+    value |= 0;
+    const result = [];
+    while (true) {
+      const byte = value & 0b01111111;
+      value >>= 7;
+      if (
+        (value === 0 && (byte & 0b01000000) === 0) ||
+        (value === -1 && (byte & 0b01000000) !== 0)
+      ) {
+        result.push(byte);
+        break;
+      }
+      result.push(byte | 0b10000000);
+    }
+    const u8a = new Uint8Array(result);
+    this.writeBytes(u8a.buffer);
+  }
+
+  writeI32(num: number) {
+    this.writeS32(num);
+  }
+
+  writeName(name: string) {
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(name);
+    this.writeU32(bytes.length);
+    this.writeBytes(bytes);
+  }
+
+  writeVec<T>(ts: T[], writeT: (t: T) => void) {
+    this.writeU32(ts.length);
+    for (const t of ts) {
+      writeT(t);
+    }
+  }
+
+  append(buffer: Buffer) {
+    this.writeU32(buffer.#cursor);
+    for (let i = 0; i < buffer.#cursor; i++) {
+      this.writeByte(buffer.peek(i));
+    }
+  }
+
+  peek(pos: number = 0): number {
+    return this.#view.getUint8(pos);
+  }
 }
