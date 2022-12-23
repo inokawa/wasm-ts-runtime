@@ -377,6 +377,8 @@ export class BlockInstrNode {
 
   store(buffer: Buffer) {
     buffer.writeByte(OP.BLOCK);
+    buffer.writeByte(this.blockType);
+    this.instrs.store(buffer);
   }
 }
 
@@ -391,6 +393,8 @@ export class LoopInstrNode {
 
   store(buffer: Buffer) {
     buffer.writeByte(OP.LOOP);
+    buffer.writeByte(this.blockType);
+    this.instrs.store(buffer);
   }
 }
 
@@ -403,6 +407,7 @@ export class BrInstrNode {
 
   store(buffer: Buffer) {
     buffer.writeByte(OP.BR);
+    buffer.writeU32(this.labelIdx);
   }
 }
 
@@ -415,6 +420,7 @@ export class BrIfInstrNode {
 
   store(buffer: Buffer) {
     buffer.writeByte(OP.BR_IF);
+    buffer.writeU32(this.labelIdx);
   }
 }
 type LabelIdx = number;
