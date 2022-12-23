@@ -61,3 +61,13 @@ it("store loop.wasm", async () => {
   wasmModule.store(newBuffer);
   expect(new Uint8Array(code)).toEqual(newCode);
 });
+
+it("store call.wasm", async () => {
+  const code = await fs.readFile("data/call.wasm");
+  const wasmBuffer = new WasmBuffer(code);
+  const wasmModule = new WasmModule(wasmBuffer);
+  const newCode = new Uint8Array(wasmBuffer.byteLength);
+  const newBuffer = new WasmBuffer(newCode);
+  wasmModule.store(newBuffer);
+  expect(new Uint8Array(code)).toEqual(newCode);
+});

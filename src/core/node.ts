@@ -29,9 +29,7 @@ export class ModuleNode {
 const TEMP_BUFFER_LENGTH = 1024;
 
 const createTempBuffer = () =>
-  new Buffer({
-    buffer: new ArrayBuffer(TEMP_BUFFER_LENGTH),
-  });
+  new Buffer({ buffer: new ArrayBuffer(TEMP_BUFFER_LENGTH) });
 
 type SectionNode =
   | TypeSectionNode
@@ -458,6 +456,7 @@ export class CallInstrNode {
 
   store(buffer: Buffer) {
     buffer.writeByte(OP.CALL);
+    buffer.writeU32(this.funcIdx);
   }
 }
 type FuncIdx = number;
