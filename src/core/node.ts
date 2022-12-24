@@ -1,4 +1,11 @@
 import { Buffer } from "./buffer";
+import {
+  OPCODE,
+  SECTION_ID,
+  NUM_TYPE,
+  REFERENCE_TYPE,
+  FUNC_TYPE_TAG,
+} from "./constants";
 
 export class ModuleNode {
   magic: Uint8Array;
@@ -37,25 +44,33 @@ type SectionNode =
   | CodeSectionNode
   | ExportSectionNode;
 
-const TYPE_SECTION_ID = 0x01;
-const FUNCTION_SECTION_ID = 0x03;
-const EXPORT_SECTION_ID = 0x07;
-const CODE_SECTION_ID = 0x0a;
-
 const loadSection = (buffer: Buffer): SectionNode => {
   const sectionId = buffer.readByte();
   const sectionSize = buffer.readU32();
   const sectionBuffer = buffer.readBuffer(sectionSize);
 
   switch (sectionId) {
-    case TYPE_SECTION_ID:
+    case SECTION_ID.CUSTOM:
+      throw new Error(`unimplemented section id: ${sectionId}`);
+    case SECTION_ID.TYPE:
       return new TypeSectionNode(sectionBuffer);
-    case FUNCTION_SECTION_ID:
+    case SECTION_ID.IMPORT:
+      throw new Error(`unimplemented section id: ${sectionId}`);
+    case SECTION_ID.FUNCTION:
       return new FunctionSectionNode(sectionBuffer);
-    case EXPORT_SECTION_ID:
+    case SECTION_ID.TABLE:
+    case SECTION_ID.MEMORY:
+    case SECTION_ID.GLOBAL:
+    case SECTION_ID.START:
+    case SECTION_ID.ELEMENT:
+      throw new Error(`unimplemented section id: ${sectionId}`);
+    case SECTION_ID.EXPORT:
       return new ExportSectionNode(sectionBuffer);
-    case CODE_SECTION_ID:
+    case SECTION_ID.CODE:
       return new CodeSectionNode(sectionBuffer);
+    case SECTION_ID.DATA:
+    case SECTION_ID.DATA_COUNT:
+      throw new Error(`unimplemented section id: ${sectionId}`);
     default:
       throw new Error(`invaild section id: ${sectionId}`);
   }
@@ -69,7 +84,7 @@ export class TypeSectionNode {
   }
 
   store(buffer: Buffer) {
-    buffer.writeByte(TYPE_SECTION_ID);
+    buffer.writeByte(SECTION_ID.TYPE);
     const sectionsBuffer = createTempBuffer();
     sectionsBuffer.writeVec(this.funcTypes, (funcType) => {
       funcType.store(sectionsBuffer);
@@ -78,17 +93,7 @@ export class TypeSectionNode {
   }
 }
 
-const FUNC_TYPE_TAG = 0x60;
-
-const I32 = 0x7f;
-const I64 = 0x7e;
-const F32 = 0x7d;
-const F64 = 0x7c;
-type NumType = typeof I32 | typeof I64 | typeof F32 | typeof F64;
-const FUNC_REF = 0x70;
-const EXTERN_REF = 0x6f;
-type RefType = typeof FUNC_REF | typeof EXTERN_REF;
-type ValType = NumType | RefType;
+type ValType = NUM_TYPE | REFERENCE_TYPE;
 
 export class FuncTypeNode {
   paramType: ResultTypeNode;
@@ -133,7 +138,7 @@ export class FunctionSectionNode {
   }
 
   store(buffer: Buffer) {
-    buffer.writeByte(FUNCTION_SECTION_ID);
+    buffer.writeByte(SECTION_ID.FUNCTION);
     const sectionsBuffer = createTempBuffer();
     sectionsBuffer.writeVec(this.typeIdxs, (typeIdx) => {
       sectionsBuffer.writeU32(typeIdx);
@@ -150,7 +155,7 @@ export class CodeSectionNode {
   }
 
   store(buffer: Buffer) {
-    buffer.writeByte(CODE_SECTION_ID);
+    buffer.writeByte(SECTION_ID.CODE);
     const sectionsBuffer = createTempBuffer();
     sectionsBuffer.writeVec(this.codes, (code) => {
       code.store(sectionsBuffer);
@@ -200,7 +205,7 @@ export class ExportSectionNode {
   }
 
   store(buffer: Buffer) {
-    buffer.writeByte(EXPORT_SECTION_ID);
+    buffer.writeByte(SECTION_ID.EXPORT);
     const sectionsBuffer = createTempBuffer();
     sectionsBuffer.writeVec(this.exports, (ex) => {
       ex.store(sectionsBuffer);
@@ -254,39 +259,6 @@ export class LocalsNode {
   }
 }
 
-const OP = {
-  BLOCK: 0x02,
-  LOOP: 0x03,
-  IF: 0x04,
-  ELSE: 0x05,
-  CALL: 0x10,
-  END: 0x0b,
-  BR: 0x0c,
-  BR_IF: 0x0d,
-  LOCAL_GET: 0x20,
-  LOCAL_SET: 0x21,
-  I32_CONST: 0x41,
-  I32_EQZ: 0x45,
-  I32_EQ: 0x46,
-  I32_NE: 0x47,
-  I32_LT_S: 0x48,
-  I32_LT_U: 0x49,
-  I32_GT_S: 0x4a,
-  I32_GT_U: 0x4b,
-  I32_LE_S: 0x4c,
-  I32_LE_U: 0x4d,
-  I32_GE_S: 0x4e,
-  I32_GE_U: 0x4f,
-  I32_ADD: 0x6a,
-  I32_SUB: 0x6b,
-  I32_MUL: 0x6c,
-  I32_DIV_S: 0x6d,
-  I32_DIV_U: 0x6e,
-  I32_REM_S: 0x6f,
-  I32_REM_U: 0x70,
-} as const;
-type OP = typeof OP[keyof typeof OP];
-
 type InstrNode =
   | BlockInstrNode
   | LoopInstrNode
@@ -305,12 +277,12 @@ type InstrNode =
 
 export class ExprNode {
   instrs: InstrNode[] = [];
-  endOp!: typeof OP.END | typeof OP.ELSE;
+  endOp!: typeof OPCODE.END | typeof OPCODE.ELSE;
 
   constructor(buffer: Buffer) {
     while (true) {
-      const opcode = buffer.readByte() as OP;
-      if (opcode === OP.END || opcode === OP.ELSE) {
+      const opcode = buffer.readByte() as OPCODE;
+      if (opcode === OPCODE.END || opcode === OPCODE.ELSE) {
         this.endOp = opcode;
         break;
       }
@@ -327,37 +299,37 @@ export class ExprNode {
   }
 }
 
-const createInstrNode = (opcode: OP, buffer: Buffer) => {
+const createInstrNode = (opcode: OPCODE, buffer: Buffer) => {
   switch (opcode) {
-    case OP.BLOCK:
+    case OPCODE.BLOCK:
       return new BlockInstrNode(buffer);
-    case OP.LOOP:
+    case OPCODE.LOOP:
       return new LoopInstrNode(buffer);
-    case OP.BR:
+    case OPCODE.BR:
       return new BrInstrNode(buffer);
-    case OP.BR_IF:
+    case OPCODE.BR_IF:
       return new BrIfInstrNode(buffer);
-    case OP.BLOCK:
+    case OPCODE.BLOCK:
       return new BlockInstrNode(buffer);
-    case OP.IF:
+    case OPCODE.IF:
       return new IfInstrNode(buffer);
-    case OP.CALL:
+    case OPCODE.CALL:
       return new CallInstrNode(buffer);
-    case OP.I32_CONST:
+    case OPCODE.I32_CONST:
       return new I32ConstInstrNode(buffer);
-    case OP.LOCAL_GET:
+    case OPCODE.LOCAL_GET:
       return new LocalGetInstrNode(buffer);
-    case OP.LOCAL_SET:
+    case OPCODE.LOCAL_SET:
       return new LocalSetInstrNode(buffer);
-    case OP.I32_ADD:
+    case OPCODE.I32_ADD:
       return new I32AddInstrNode();
-    case OP.I32_EQZ:
+    case OPCODE.I32_EQZ:
       return new I32EqzInstrNode();
-    case OP.I32_LT_S:
+    case OPCODE.I32_LT_S:
       return new I32LtSInstrNode();
-    case OP.I32_GE_S:
+    case OPCODE.I32_GE_S:
       return new I32GeSInstrNode();
-    case OP.I32_REM_S:
+    case OPCODE.I32_REM_S:
       return new I32RemSInstrNode();
     default:
       throw new Error(`invalid opcode: 0x${opcode.toString(16)}`);
@@ -374,7 +346,7 @@ export class BlockInstrNode {
   }
 
   store(buffer: Buffer) {
-    buffer.writeByte(OP.BLOCK);
+    buffer.writeByte(OPCODE.BLOCK);
     buffer.writeByte(this.blockType);
     this.instrs.store(buffer);
   }
@@ -390,7 +362,7 @@ export class LoopInstrNode {
   }
 
   store(buffer: Buffer) {
-    buffer.writeByte(OP.LOOP);
+    buffer.writeByte(OPCODE.LOOP);
     buffer.writeByte(this.blockType);
     this.instrs.store(buffer);
   }
@@ -404,7 +376,7 @@ export class BrInstrNode {
   }
 
   store(buffer: Buffer) {
-    buffer.writeByte(OP.BR);
+    buffer.writeByte(OPCODE.BR);
     buffer.writeU32(this.labelIdx);
   }
 }
@@ -417,7 +389,7 @@ export class BrIfInstrNode {
   }
 
   store(buffer: Buffer) {
-    buffer.writeByte(OP.BR_IF);
+    buffer.writeByte(OPCODE.BR_IF);
     buffer.writeU32(this.labelIdx);
   }
 }
@@ -431,21 +403,21 @@ export class IfInstrNode {
   constructor(buffer: Buffer) {
     this.blockType = buffer.readByte();
     this.thenInstrs = new ExprNode(buffer);
-    if (this.thenInstrs.endOp === OP.ELSE) {
+    if (this.thenInstrs.endOp === OPCODE.ELSE) {
       this.elseInstrs = new ExprNode(buffer);
     }
   }
 
   store(buffer: Buffer) {
-    buffer.writeByte(OP.IF);
+    buffer.writeByte(OPCODE.IF);
     buffer.writeByte(this.blockType);
-    this.thenInstrs.endOp = this.elseInstrs ? OP.ELSE : OP.END;
+    this.thenInstrs.endOp = this.elseInstrs ? OPCODE.ELSE : OPCODE.END;
     this.thenInstrs.store(buffer);
     this.elseInstrs?.store(buffer);
   }
 }
 type S33 = number;
-type BlockType = typeof OP.IF | ValType | S33;
+type BlockType = typeof OPCODE.IF | ValType | S33;
 
 export class CallInstrNode {
   funcIdx: FuncIdx;
@@ -455,14 +427,14 @@ export class CallInstrNode {
   }
 
   store(buffer: Buffer) {
-    buffer.writeByte(OP.CALL);
+    buffer.writeByte(OPCODE.CALL);
     buffer.writeU32(this.funcIdx);
   }
 }
 type FuncIdx = number;
 
 export class I32ConstInstrNode {
-  op = OP.I32_CONST;
+  op = OPCODE.I32_CONST;
   num: number;
 
   constructor(buffer: Buffer) {
@@ -470,13 +442,13 @@ export class I32ConstInstrNode {
   }
 
   store(buffer: Buffer) {
-    buffer.writeByte(OP.I32_CONST);
+    buffer.writeByte(OPCODE.I32_CONST);
     buffer.writeI32(this.num);
   }
 }
 
 export class LocalGetInstrNode {
-  op = OP.LOCAL_GET;
+  op = OPCODE.LOCAL_GET;
   localIdx: number;
 
   constructor(buffer: Buffer) {
@@ -484,13 +456,13 @@ export class LocalGetInstrNode {
   }
 
   store(buffer: Buffer) {
-    buffer.writeByte(OP.LOCAL_GET);
+    buffer.writeByte(OPCODE.LOCAL_GET);
     buffer.writeU32(this.localIdx);
   }
 }
 
 export class LocalSetInstrNode {
-  op = OP.LOCAL_SET;
+  op = OPCODE.LOCAL_SET;
   localIdx: number;
 
   constructor(buffer: Buffer) {
@@ -498,43 +470,43 @@ export class LocalSetInstrNode {
   }
 
   store(buffer: Buffer) {
-    buffer.writeByte(OP.LOCAL_SET);
+    buffer.writeByte(OPCODE.LOCAL_SET);
     buffer.writeU32(this.localIdx);
   }
 }
 
 export class I32AddInstrNode {
-  op = OP.I32_ADD;
+  op = OPCODE.I32_ADD;
 
   store(buffer: Buffer) {
-    buffer.writeByte(OP.I32_ADD);
+    buffer.writeByte(OPCODE.I32_ADD);
   }
 }
 export class I32EqzInstrNode {
-  op = OP.I32_EQZ;
+  op = OPCODE.I32_EQZ;
 
   store(buffer: Buffer) {
-    buffer.writeByte(OP.I32_EQZ);
+    buffer.writeByte(OPCODE.I32_EQZ);
   }
 }
 export class I32LtSInstrNode {
-  op = OP.I32_LT_S;
+  op = OPCODE.I32_LT_S;
 
   store(buffer: Buffer) {
-    buffer.writeByte(OP.I32_LT_S);
+    buffer.writeByte(OPCODE.I32_LT_S);
   }
 }
 export class I32GeSInstrNode {
-  op = OP.I32_GE_S;
+  op = OPCODE.I32_GE_S;
 
   store(buffer: Buffer) {
-    buffer.writeByte(OP.I32_GE_S);
+    buffer.writeByte(OPCODE.I32_GE_S);
   }
 }
 export class I32RemSInstrNode {
-  op = OP.I32_REM_S;
+  op = OPCODE.I32_REM_S;
 
   store(buffer: Buffer) {
-    buffer.writeByte(OP.I32_REM_S);
+    buffer.writeByte(OPCODE.I32_REM_S);
   }
 }
