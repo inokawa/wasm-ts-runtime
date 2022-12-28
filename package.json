@@ -11,11 +11,12 @@
     "packages/*"
   ],
   "scripts": {
-    "start": "wasm-interpreter",
+    "start": "turbo build && wasm-interpreter",
     "wat2wasm": "wat2wasm",
     "wasm-objdump": "wasm-objdump"
   },
   "devDependencies": {
+    "turbo": "^1.6.3",
     "wabt": "1.0.30"
   },
   "repository": {
